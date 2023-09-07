@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,10 +50,14 @@ func Parse(r io.Reader) (map[string]string, error) {
 //
 // It's important to note that it WILL NOT OVERRIDE an env variable that already exists - consider the .env file to set dev vars or sensible defaults.
 func Load(filenames ...string) (err error) {
+	return LoadFrom("./", filenames...)
+}
+
+func LoadFrom(dir string, filenames ...string) (err error) {
 	filenames = filenamesOrDefault(filenames)
 
 	for _, filename := range filenames {
-		err = loadFile(filename, false)
+		err = loadFile(dir, filename, false)
 		if err != nil {
 			return // return early on a spazout
 		}
@@ -72,10 +77,14 @@ func Load(filenames ...string) (err error) {
 //
 // It's important to note this WILL OVERRIDE an env variable that already exists - consider the .env file to forcefully set all vars.
 func Overload(filenames ...string) (err error) {
+	return OverloadFrom("./")
+}
+
+func OverloadFrom(dir string, filenames ...string) (err error) {
 	filenames = filenamesOrDefault(filenames)
 
 	for _, filename := range filenames {
-		err = loadFile(filename, true)
+		err = loadFile(dir, filename, true)
 		if err != nil {
 			return // return early on a spazout
 		}
@@ -86,11 +95,15 @@ func Overload(filenames ...string) (err error) {
 // Read all env (with same file loading semantics as Load) but return values as
 // a map rather than automatically writing values into env
 func Read(filenames ...string) (envMap map[string]string, err error) {
+	return ReadFrom("./", filenames...)
+}
+
+func ReadFrom(dir string, filenames ...string) (envMap map[string]string, err error) {
 	filenames = filenamesOrDefault(filenames)
 	envMap = make(map[string]string)
 
 	for _, filename := range filenames {
-		individualEnvMap, individualErr := readFile(filename)
+		individualEnvMap, individualErr := readFile(dir, filename)
 
 		if individualErr != nil {
 			err = individualErr
@@ -181,8 +194,8 @@ func filenamesOrDefault(filenames []string) []string {
 	return filenames
 }
 
-func loadFile(filename string, overload bool) error {
-	envMap, err := readFile(filename)
+func loadFile(dir, filename string, overload bool) error {
+	envMap, err := readFile(dir, filename)
 	if err != nil {
 		return err
 	}
@@ -203,8 +216,8 @@ func loadFile(filename string, overload bool) error {
 	return nil
 }
 
-func readFile(filename string) (envMap map[string]string, err error) {
-	file, err := os.Open(filename)
+func readFile(dir, filename string) (envMap map[string]string, err error) {
+	file, err := os.Open(path.Join(dir, filename))
 	if err != nil {
 		return
 	}
