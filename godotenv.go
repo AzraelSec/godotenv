@@ -15,6 +15,7 @@ package godotenv
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,8 @@ import (
 )
 
 const doubleQuoteSpecialChars = "\\\n\r\"!$`"
+
+var noEnvFileLoadedErr = errors.New("no env file loaded")
 
 // Parse reads an env file from io.Reader, returning a map of keys and values.
 func Parse(r io.Reader) (map[string]string, error) {
@@ -49,18 +52,27 @@ func Parse(r io.Reader) (map[string]string, error) {
 //	godotenv.Load("fileone", "filetwo")
 //
 // It's important to note that it WILL NOT OVERRIDE an env variable that already exists - consider the .env file to set dev vars or sensible defaults.
-func Load(filenames ...string) (err error) {
-	return LoadFrom("./", filenames...)
+func Load(strict bool, filenames ...string) (err error) {
+	return LoadFrom("./", strict, filenames...)
 }
 
-func LoadFrom(dir string, filenames ...string) (err error) {
+func LoadFrom(dir string, strict bool, filenames ...string) (err error) {
 	filenames = filenamesOrDefault(filenames)
+	loaded := false
 
 	for _, filename := range filenames {
-		err = loadFile(dir, filename, false)
-		if err != nil {
+		innerErr := loadFile(dir, filename, false)
+		if innerErr != nil && strict {
+			err = innerErr
 			return // return early on a spazout
 		}
+		if innerErr == nil {
+			loaded = true
+		}
+	}
+
+	if !loaded {
+		err = noEnvFileLoadedErr
 	}
 	return
 }
@@ -76,45 +88,63 @@ func LoadFrom(dir string, filenames ...string) (err error) {
 //	godotenv.Overload("fileone", "filetwo")
 //
 // It's important to note this WILL OVERRIDE an env variable that already exists - consider the .env file to forcefully set all vars.
-func Overload(filenames ...string) (err error) {
-	return OverloadFrom("./")
+func Overload(strict bool, filenames ...string) (err error) {
+	return OverloadFrom("./", strict, filenames...)
 }
 
-func OverloadFrom(dir string, filenames ...string) (err error) {
+func OverloadFrom(dir string, strict bool, filenames ...string) (err error) {
 	filenames = filenamesOrDefault(filenames)
+	loaded := false
 
 	for _, filename := range filenames {
-		err = loadFile(dir, filename, true)
-		if err != nil {
+		innerErr := loadFile(dir, filename, true)
+		if innerErr != nil && strict {
+			err = innerErr
 			return // return early on a spazout
 		}
+		if innerErr != nil && !strict {
+			continue
+		}
+		loaded = true
+	}
+
+	if !loaded {
+		err = noEnvFileLoadedErr
 	}
 	return
 }
 
 // Read all env (with same file loading semantics as Load) but return values as
 // a map rather than automatically writing values into env
-func Read(filenames ...string) (envMap map[string]string, err error) {
-	return ReadFrom("./", filenames...)
+func Read(strict bool, filenames ...string) (envMap map[string]string, err error) {
+	return ReadFrom("./", strict, filenames...)
 }
 
-func ReadFrom(dir string, filenames ...string) (envMap map[string]string, err error) {
+func ReadFrom(dir string, strict bool, filenames ...string) (envMap map[string]string, err error) {
 	filenames = filenamesOrDefault(filenames)
 	envMap = make(map[string]string)
+	loaded := false
 
 	for _, filename := range filenames {
 		individualEnvMap, individualErr := readFile(dir, filename)
 
-		if individualErr != nil {
+		if individualErr != nil && strict {
 			err = individualErr
 			return // return early on a spazout
 		}
+		if individualErr != nil && !strict {
+			continue
+		}
 
+		loaded = true
 		for key, value := range individualEnvMap {
 			envMap[key] = value
 		}
 	}
 
+	if !loaded {
+		err = noEnvFileLoadedErr
+	}
 	return
 }
 
@@ -138,12 +168,12 @@ func UnmarshalBytes(src []byte) (map[string]string, error) {
 //
 // If you want more fine grained control over your command it's recommended
 // that you use `Load()`, `Overload()` or `Read()` and the `os/exec` package yourself.
-func Exec(filenames []string, cmd string, cmdArgs []string, overload bool) error {
+func Exec(filenames []string, cmd string, cmdArgs []string, strict, overload bool) error {
 	op := Load
 	if overload {
 		op = Overload
 	}
-	if err := op(filenames...); err != nil {
+	if err := op(strict, filenames...); err != nil {
 		return err
 	}
 

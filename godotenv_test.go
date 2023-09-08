@@ -23,7 +23,7 @@ func parseAndCompare(t *testing.T, rawEnvLine string, expectedKey string, expect
 	}
 }
 
-func loadEnvAndCompareValues(t *testing.T, loader func(files ...string) error, envFileName string, expectedValues map[string]string, presets map[string]string) {
+func loadEnvAndCompareValues(t *testing.T, loader func(strict bool, files ...string) error, envFileName string, expectedValues map[string]string, presets map[string]string) {
 	// first up, clear the env
 	os.Clearenv()
 
@@ -31,7 +31,7 @@ func loadEnvAndCompareValues(t *testing.T, loader func(files ...string) error, e
 		os.Setenv(k, v)
 	}
 
-	err := loader(envFileName)
+	err := loader(true, envFileName)
 	if err != nil {
 		t.Fatalf("Error loading %v", envFileName)
 	}
@@ -46,7 +46,7 @@ func loadEnvAndCompareValues(t *testing.T, loader func(files ...string) error, e
 }
 
 func TestLoadWithNoArgsLoadsDotEnv(t *testing.T) {
-	err := Load()
+	err := Load(true)
 	pathError := err.(*os.PathError)
 	if pathError == nil || pathError.Op != "open" || pathError.Path != ".env" {
 		t.Errorf("Didn't try and open .env by default")
@@ -54,7 +54,7 @@ func TestLoadWithNoArgsLoadsDotEnv(t *testing.T) {
 }
 
 func TestOverloadWithNoArgsOverloadsDotEnv(t *testing.T) {
-	err := Overload()
+	err := Overload(true)
 	pathError := err.(*os.PathError)
 	if pathError == nil || pathError.Op != "open" || pathError.Path != ".env" {
 		t.Errorf("Didn't try and open .env by default")
@@ -62,14 +62,14 @@ func TestOverloadWithNoArgsOverloadsDotEnv(t *testing.T) {
 }
 
 func TestLoadFileNotFound(t *testing.T) {
-	err := Load("somefilethatwillneverexistever.env")
+	err := Load(true, "somefilethatwillneverexistever.env")
 	if err == nil {
 		t.Error("File wasn't found but Load didn't return an error")
 	}
 }
 
 func TestOverloadFileNotFound(t *testing.T) {
-	err := Overload("somefilethatwillneverexistever.env")
+	err := Overload(true, "somefilethatwillneverexistever.env")
 	if err == nil {
 		t.Error("File wasn't found but Overload didn't return an error")
 	}
@@ -88,7 +88,7 @@ func TestReadPlainEnv(t *testing.T) {
 		"OPTION_H": "1 2",
 	}
 
-	envMap, err := Read(envFileName)
+	envMap, err := Read(true, envFileName)
 	if err != nil {
 		t.Error("Error reading file")
 	}
@@ -312,7 +312,7 @@ func TestVariableStringValueSeparator(t *testing.T) {
 func TestActualEnvVarsAreLeftAlone(t *testing.T) {
 	os.Clearenv()
 	os.Setenv("OPTION_A", "actualenv")
-	_ = Load("fixtures/plain.env")
+	_ = Load(true, "fixtures/plain.env")
 
 	if os.Getenv("OPTION_A") != "actualenv" {
 		t.Error("An ENV var set earlier was overwritten")
@@ -453,7 +453,7 @@ func TestLinesToIgnore(t *testing.T) {
 
 func TestErrorReadDirectory(t *testing.T) {
 	envFileName := "fixtures/"
-	envMap, err := Read(envFileName)
+	envMap, err := Read(true, envFileName)
 
 	if err == nil {
 		t.Errorf("Expected error, got %v", envMap)
@@ -462,7 +462,7 @@ func TestErrorReadDirectory(t *testing.T) {
 
 func TestErrorParsing(t *testing.T) {
 	envFileName := "fixtures/invalid1.env"
-	envMap, err := Read(envFileName)
+	envMap, err := Read(true, envFileName)
 	if err == nil {
 		t.Errorf("Expected error, got %v", envMap)
 	}

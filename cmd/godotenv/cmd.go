@@ -49,7 +49,7 @@ example
 	cmd := args[0]
 	cmdArgs := args[1:]
 
-	err := godotenv.Exec(envFilenames, cmd, cmdArgs, overload)
+	err := godotenv.Exec(envFilenames, cmd, cmdArgs, true, overload)
 	if err != nil {
 		log.Fatal(err)
 	}

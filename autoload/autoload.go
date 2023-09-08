@@ -11,5 +11,5 @@ package autoload
 import "github.com/AzraelSec/godotenv"
 
 func init() {
-	godotenv.Load()
+	godotenv.Load(true)
 }
